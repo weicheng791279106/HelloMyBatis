@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- 
+
+高级映射演示
+本示例中的建表语句：
+
+用户表：
+CREATE TABLE `t_user` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8;
+
+订单表：
+CREATE TABLE `t_order` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `number` int(11) NOT NULL,
+  `name` text NOT NULL,
+  `user_id` bigint(20) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `user_id` (`user_id`),
+  CONSTRAINT `user_id` FOREIGN KEY (`user_id`) REFERENCES `t_user` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8;
+
+订单明细表（多个明细对应一个订单，并且每个明细只对应一个商品）：
+CREATE TABLE `t_order_detail` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `order_id` bigint(20) NOT NULL,
+  `item_id` bigint(20) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `order_id` (`order_id`),
+  KEY `item_id` (`item_id`),
+  CONSTRAINT `item_id` FOREIGN KEY (`item_id`) REFERENCES `t_items` (`id`),
+  CONSTRAINT `order_id` FOREIGN KEY (`order_id`) REFERENCES `t_order` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8;
+
+商品表
+CREATE TABLE `t_items` (
+  `id` bigint(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(20) NOT NULL,
+  `price` double NOT NULL,
+  `detail` text,
+  `pic` text,
+  `createtime` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
+
+
+演示知识点：
+	1、resultMap中<association>标签的使用，可以完成一对一的高级映射
+	2、resultMap中<collection>标签的使用，可以完成一对多的高级映射
+	3、<association>和<collection>都可以实现延时加载功能
+
+-->
+
+<!-- 使用namespace标签对sql进行分类化管理 -->
+<mapper namespace="com.weicheng.mapper.OrderMapper">
+
+
+	<!-- 
+		查询订单及关联用户(resultType演示)
+		由于所有字段都放在映射对象的第一层，所以可以使用resultType进行查询
+	 -->
+	<select id="queryOrderUser" resultType="com.weicheng.po.OrderUserQueryVo">
+		SELECT
+		orders.id,
+		orders.name,
+		orders.number,
+		orders.user_id userId,
+		user.name userName
+		FROM
+		t_order orders,t_user user
+		WHERE
+		orders.user_id = user.id
+	</select>
+	
+	
+	<!-- 
+		<association>标签使用演示：
+		查询订单及关联用户，将用户信息放在查询出来的Order对象中的user属性中
+	 -->
+	<select id="queryOrderUserRM" resultMap="OrderUserRM">
+		SELECT
+		orders.id,
+		orders.name,
+		orders.number,
+		orders.user_id userId,
+		user.name userName
+		FROM
+		t_order orders,t_user user
+		WHERE
+		orders.user_id = user.id
+	</select>
+	
+	<!-- 
+		查询订单及关联用户及订单detail信息，
+		将用户信息放在查询出来的Order对象中的user属性中， detail信息放在orderDetailList属性中
+	-->
+	<select id="queryOrderDetail" resultMap="queryOrderDetailRM">
+		SELECT
+		orders.id,
+		orders.name,
+		orders.number,
+		orders.user_id userId,
+		user.name userName,
+		detail.id detailId,
+		detail.item_id itemId
+		FROM
+		t_order orders,t_user user,t_order_detail detail
+		WHERE
+		orders.user_id = user.id AND orders.id = detail.order_id
+	</select>
+	
+	
+	<!-- 查询用户订单信息，将订单列表放在orderList中，将商品列表放在Order的itemList中 -->
+	<select id="queryUserOrder" resultMap="queryUserOrderRM">
+		SELECT
+		orders.id,
+		orders.name,
+		orders.number,
+		orders.user_id userId,
+		user.name userName,
+		detail.id detailId,
+		detail.item_id itemId,
+		items.name itemName,
+		items.price itemPrice,
+		items.detail itemDetail,
+		items.createtime itemCreateTime
+		FROM
+		t_order orders,t_user user,t_order_detail detail,t_items items 
+		WHERE
+		orders.user_id = user.id AND orders.id = detail.order_id AND detail.item_id = items.id
+	</select>
+	
+	
+	<!-- 延迟加载演示 -->
+	<!-- 查询所有订单及延迟查询订单所关联的用户 -->
+	
+	<select id="queryOrderListLazy" resultMap="queryOrderUserLazyRM">
+		SELECT id orderId,number orderNumber,name orderName,user_id userId FROM t_order;
+	</select>
+	
+	<select id="qeuryUserById" parameterType="int" resultType="User">
+		SELECT * FROM t_user WHERE id = #{value};
+	</select>
+	
+	<resultMap id="queryOrderUserLazyRM" type="com.weicheng.po.OrderUserQueryVo2" >
+	
+		<!-- 先映射出order的属性 -->
+		<id column="orderId" property="id"/>
+		<result column="orderNumber" property="number"/>
+		<result column="orderName" property="name"/>
+		<result column="userId" property="userId"/>
+		
+		<!-- 延时加载user信息 -->
+		<association property="user" javaType="com.weicheng.po.User" select="qeuryUserById" column="userId"></association>
+	
+	</resultMap>
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	<!-- 
+		<association>标签使用演示:
+		type:所要映射的查询结果pojo 
+	-->
+	<resultMap id="OrderUserRM" type="com.weicheng.po.OrderUserQueryVo2" >
+	
+		<!-- 
+			<id>为主键，<result>为非主键
+			column为sql查询出来的字段，property为pojo中对应column的属性名
+		 -->
+		<id column="id" property="id"/>
+		<result column="number" property="number"/>
+		<result column="name" property="name"/>
+		<result column="user_id" property="userId"/>
+		
+		
+		<!-- 配置映射的关联的用户信息 -->
+		<!-- 
+			<association>用于映射关联查询的单个对象的信息，
+			property为需要映射的属性名，javaType为需要映射的属性的类全名
+		-->
+		<association property="user" javaType="com.weicheng.po.User">
+			<id column="userId" property="id"/>
+			<result column="userName" property="name"/>
+		</association>
+	
+	</resultMap>
+	
+	
+	
+	<!-- 
+		<collection>标签使用演示 
+		extends：指定要继承的resultMap（没错，resultMap也是可以继承的）
+	-->
+	<resultMap id="queryOrderDetailRM" type="com.weicheng.po.OrderUserQueryVo2" extends="OrderUserRM">
+		
+		<!-- 
+			<collection>可以将查询出来的一对多的结果自动过滤掉重复项之后注入到指定的List属性中
+			property：需要映射的List属性
+			ofType：需要注入的pojo类型
+		 -->
+		<collection property="orderDetailList" ofType="com.weicheng.po.OrderDetail">
+			<id column="detailId" property="id"/>
+			<result column="itemId" property="itemId"/>
+			<result column="id" property="orderId"/>
+		</collection>
+	
+	</resultMap>
+	
+	
+	
+	<!-- 查询用户所购买的订单及其详情 -->
+	<resultMap id="queryUserOrderRM" type="com.weicheng.po.OrderUserQueryVo3">
+	
+		<!-- 先查出用户 -->
+		<id column="userId" property="id"/>
+		<result column="userName" property="name"/>
+		
+		<!-- 订单列表 -->
+		<collection property="orderList" ofType="com.weicheng.po.MOrder">
+			<id column="id" property="id"/>
+			<result column="name" property="name"/>
+			<result column="number" property="number"/>
+			<result column="userId" property="userId"/>
+			
+			<!-- 根据orderDetail找到商品信息 -->
+			<collection property="itemList" ofType="com.weicheng.po.Item">
+				<id column="itemId" property="id"/>
+				<result column="itemName" property="name"/>
+				<result column="itemPrice" property="price"/>
+				<result column="itemDetail" property="detail"/>
+				<result column="itemCreateTime" property="createTime"/>
+			</collection>
+			
+		</collection>
+	
+	</resultMap>
+	
+	
+	
+
+
+</mapper>
+
+
+
+
+
+

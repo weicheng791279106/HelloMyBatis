@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- 使用namespace标签对sql进行分类化管理 -->
+<mapper namespace="user">
+
+	<!-- 在映射文件中可以配置很多sql语句 -->
+	<!-- 通过selecct执行数据库查询
+	id：标识映射文件中的sql，将sql语句封装到mappedStatement对象中，所以将id称为statement的id 
+	-->
+	
+	<!-- 通过id查询用户 -->
+	<!-- parameterType：指定输入参数的类型 -->
+	<!-- resultType：指定输出结果所映射的java对象类型 -->
+	<!-- #{}占位符用来接受参数，其中的值可以任意命名 -->
+	<select id="findUserById" parameterType="int" resultType="com.weicheng.po.User">
+		SELECT * FROM t_user WHERE id = #{id}
+	</select>
+	
+	
+	<!-- 通过名称查询用户 -->
+	<!-- ${}占位符表示将接受到的参数不加任何修饰直接拼接在sql中，有sql注入隐患 -->
+	<!-- ${}中如果接收的是简单类型的参数，只能使用value命名来接收 -->
+	<select id="findUserByName" parameterType="java.lang.String" resultType="com.weicheng.po.User">
+		SELECT * FROM t_user WHERE name LIKE '%${value}%'
+	</select>
+	
+	
+	<!-- 添加用户 -->
+	<!-- parameterType为pojo类型时#{}内的占位符需要传入pojo的成员变量名 -->
+	<insert id="insertUser" parameterType="com.weicheng.po.User">
+	
+		<!-- 需求：将新插入数据生成的自增主键id返回到user对象中 -->
+		<!-- keyProperty：将查询到的主键值设置到parameterType的哪个属性 -->
+		<!-- order：SELECT LAST_INSERT_ID()的执行时机， -->
+		<!-- 注意：这个方式只能用在主键自增的表中 -->
+		<selectKey keyProperty="id" order="AFTER" resultType="java.lang.Integer">
+			SELECT LAST_INSERT_ID()
+		</selectKey>
+	
+		INSERT INTO t_user(name) VALUE(#{name})
+	</insert>
+	
+	
+	<!-- 删除用户 -->
+	<delete id="deleteUser" parameterType="java.lang.Integer">
+		DELETE FROM t_user WHERE id=#{id}
+	</delete>
+	
+	
+	<!-- 根据Id更新用户 -->
+	<!-- 指定Id需要放入传入的User对象的id成员变量中 -->
+	<update id="updateUser" parameterType="com.weicheng.po.User">
+		UPDATE t_user SET name=#{name} WHERE id=#{id}
+	</update>
+
+
+</mapper>
+
+
+
+
+
+
